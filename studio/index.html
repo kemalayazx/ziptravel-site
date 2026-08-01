@@ -100,7 +100,9 @@
 
 </div>
 <script>
-const API = "https://www-looked-venture-libs.trycloudflare.com/studio-api";
+// The backend is reached through a tunnel whose hostname changes when it
+// restarts, so it publishes its current address here rather than being pinned.
+let API = "";
 const $ = id => document.getElementById(id);
 let session = localStorage.getItem("studio_session") || "";
 let creator = null, selected = null;
@@ -203,7 +205,22 @@ $("post").onclick = async () => {
   $("post").textContent = "Post to TikTok";
 };
 
+async function resolveApi() {
+  const r = await fetch("api.json?t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error("backend address unavailable");
+  API = (await r.json()).api;
+}
+
 (async () => {
+  try {
+    await resolveApi();
+  } catch {
+    $("signedout").innerHTML =
+      "The studio backend is offline.<br>Start it and reload this page.";
+    $("connect").disabled = true;
+    return;
+  }
+
   // Coming back from the TikTok consent screen.
   const code = new URLSearchParams(location.search).get("code");
   if (code) {
