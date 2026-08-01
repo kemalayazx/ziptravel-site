@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nightfall — Captions to paste</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--card:#161b22;--line:#21262d;
+        --accent:#fe2c55;--ok:#2ea043}
+  @media (prefers-color-scheme:light){:root{--bg:#fff;--fg:#1f2328;--muted:#59636e;
+        --card:#f6f8fa;--line:#d1d9e0}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+       background:var(--bg);color:var(--fg);line-height:1.5;-webkit-text-size-adjust:100%}
+  .wrap{max-width:620px;margin:0 auto;padding:20px 16px 60px}
+  h1{font-size:19px;margin:0 0 4px}
+  .lead{color:var(--muted);font-size:13px;margin:0 0 22px}
+  .c{background:var(--card);border:1px solid var(--line);border-radius:12px;
+     padding:14px;margin-bottom:14px}
+  .h{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--muted)}
+  .lang{background:var(--line);border-radius:4px;padding:1px 6px;text-transform:uppercase;
+        font-weight:600;color:var(--fg)}
+  .late{color:var(--accent)}
+  pre{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:14px;
+      margin:0 0 12px;padding:10px;background:var(--bg);border:1px solid var(--line);
+      border-radius:8px;max-height:190px;overflow:auto}
+  button{font:inherit;font-weight:600;border:0;border-radius:8px;padding:11px 16px;
+         background:var(--accent);color:#fff;width:100%;cursor:pointer}
+  button.done{background:var(--ok)}
+  .empty{color:var(--muted);text-align:center;padding:50px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Captions to paste</h1>
+  <p class="lead">Drafts arrive without a caption. In the TikTok app open the post →
+     <b>…</b> → <b>Edit post</b> → paste. TikTok allows this for 7 days, once a day per post,
+     and keeps your views and likes.</p>
+  <div id="list" class="empty">Loading…</div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+
+async function load() {
+  let api;
+  try {
+    api = (await (await fetch("../api.json?t=" + Date.now(), { cache: "no-store" })).json()).api;
+  } catch {
+    $("list").textContent = "Backend offline.";
+    return;
+  }
+  let items;
+  try {
+    items = (await (await fetch(api + "/captions", { cache: "no-store" })).json()).captions;
+  } catch {
+    $("list").textContent = "Could not load captions.";
+    return;
+  }
+  if (!items.length) { $("list").textContent = "Nothing posted yet."; return; }
+
+  $("list").className = "";
+  $("list").innerHTML = items.map((c, i) => `
+    <div class="c">
+      <div class="h">
+        <span class="lang">${c.lang || "en"}</span>
+        <span>${(c.ts || "").replace("T", " ").slice(5, 16)}</span>
+        ${c.editable ? "" : '<span class="late">· past the 7-day edit window</span>'}
+      </div>
+      <pre id="t${i}">${c.caption.replace(/[<>&]/g, m => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[m]))}</pre>
+      <button data-i="${i}">Copy caption</button>
+    </div>`).join("");
+
+  $("list").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const text = $("t" + b.dataset.i).textContent;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Older mobile browsers refuse the async clipboard outside a secure gesture.
+      const ta = document.createElement("textarea");
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand("copy"); ta.remove();
+    }
+    b.textContent = "Copied ✓"; b.classList.add("done");
+    setTimeout(() => { b.textContent = "Copy caption"; b.classList.remove("done"); }, 2000);
+  });
+}
+load();
+</script>
+</body>
+</html>
