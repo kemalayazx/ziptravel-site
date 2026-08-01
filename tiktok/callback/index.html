@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Connecting your TikTok account…</title>
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0d1117;color:#e6edf3;
+       font-family:system-ui,-apple-system,"Segoe UI",sans-serif;text-align:center}
+  @media (prefers-color-scheme:light){body{background:#fff;color:#1f2328}}
+  .s{width:34px;height:34px;margin:0 auto 16px;border:3px solid #21262d;border-top-color:#fe2c55;
+     border-radius:50%;animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  p{color:#8b949e;font-size:14px}
+</style>
+</head>
+<body>
+<div>
+  <div class="s"></div>
+  <b>Connecting your TikTok account…</b>
+  <p id="msg">Returning you to the studio.</p>
+</div>
+<script>
+// TikTok sends the authorization code here. Hand it to the studio page, which
+// exchanges it through the backend (the client secret never touches the browser).
+const q = location.search;
+if (new URLSearchParams(q).get("code")) {
+  location.replace("/ziptravel-site/studio/" + q);
+} else {
+  document.getElementById("msg").textContent =
+    "No authorization code was returned. Please start the connection again.";
+  document.querySelector(".s").style.display = "none";
+}
+</script>
+</body>
+</html>

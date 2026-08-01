@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ZipTravel Auto Poster — Studio</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--muted:#8b949e;--card:#161b22;--line:#21262d;
+        --accent:#fe2c55;--ok:#2ea043}
+  @media (prefers-color-scheme:light){:root{--bg:#fff;--fg:#1f2328;--muted:#59636e;
+        --card:#f6f8fa;--line:#d1d9e0}}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+       background:var(--bg);color:var(--fg);line-height:1.55}
+  .wrap{max-width:940px;margin:0 auto;padding:28px 20px 64px}
+  header{display:flex;align-items:center;gap:12px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+  header h1{font-size:20px;margin:0;letter-spacing:-.01em}
+  header .sp{flex:1}
+  button{font:inherit;border:0;border-radius:8px;padding:9px 16px;cursor:pointer}
+  .primary{background:var(--accent);color:#fff;font-weight:600}
+  .primary:disabled{opacity:.5;cursor:not-allowed}
+  .ghost{background:var(--card);color:var(--fg);border:1px solid var(--line)}
+  .who{display:flex;align-items:center;gap:10px}
+  .who img{width:34px;height:34px;border-radius:50%;object-fit:cover;background:var(--line)}
+  .who small{display:block;color:var(--muted);font-size:12px}
+  section{margin-top:26px}
+  h2{font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 12px}
+  .grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+  .v{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden;
+     cursor:pointer;text-align:left;padding:0;display:block;width:100%}
+  .v.sel{border-color:var(--accent);box-shadow:0 0 0 2px rgba(254,44,85,.25)}
+  .v img{width:100%;aspect-ratio:9/16;object-fit:cover;display:block;background:#000}
+  .v .m{padding:8px 10px}
+  .v .m b{display:block;font-size:13px;font-weight:600;overflow:hidden;
+          text-overflow:ellipsis;white-space:nowrap}
+  .v .m span{font-size:11px;color:var(--muted)}
+  .badge{display:inline-block;background:var(--line);border-radius:4px;padding:0 5px;
+         font-size:10px;text-transform:uppercase;margin-right:4px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+  label{display:block;font-size:13px;font-weight:600;margin:14px 0 6px}
+  textarea,select{width:100%;font:inherit;background:var(--bg);color:var(--fg);
+                  border:1px solid var(--line);border-radius:8px;padding:10px}
+  textarea{min-height:120px;resize:vertical}
+  .row{display:flex;align-items:center;gap:9px;margin:9px 0;font-size:14px}
+  .row input{width:17px;height:17px;accent-color:var(--accent)}
+  .row.off{opacity:.45}
+  .note{font-size:12px;color:var(--muted);margin-top:14px}
+  .note a{color:var(--accent)}
+  #result{margin-top:16px;padding:12px 14px;border-radius:8px;font-size:14px;display:none}
+  #result.ok{display:block;background:rgba(46,160,67,.12);border:1px solid var(--ok)}
+  #result.err{display:block;background:rgba(254,44,85,.10);border:1px solid var(--accent)}
+  .empty{color:var(--muted);padding:40px 0;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>ZipTravel Auto Poster</h1>
+  <span class="sp"></span>
+  <div id="account"></div>
+  <button id="connect" class="primary">Connect TikTok account</button>
+</header>
+
+<div id="app" hidden>
+  <section>
+    <h2>Choose a video from your library</h2>
+    <div id="grid" class="grid"></div>
+  </section>
+
+  <section id="composer" hidden>
+    <h2>Post settings</h2>
+    <div class="panel">
+      <label for="caption">Caption</label>
+      <textarea id="caption"></textarea>
+
+      <label for="privacy">Who can view this video</label>
+      <select id="privacy"></select>
+
+      <label>Allow users to</label>
+      <div class="row" id="row-comment"><input type="checkbox" id="allow-comment" checked><span>Comment</span></div>
+      <div class="row" id="row-duet"><input type="checkbox" id="allow-duet" checked><span>Duet</span></div>
+      <div class="row" id="row-stitch"><input type="checkbox" id="allow-stitch" checked><span>Stitch</span></div>
+
+      <p class="note">By posting, you confirm this content follows
+        <a href="https://www.tiktok.com/legal/page/global/music-usage-confirmation/en" target="_blank"
+           rel="noopener">TikTok's Music Usage Confirmation</a>.
+        Only videos you created yourself, posted to your own connected account.</p>
+
+      <p style="margin-top:16px"><button id="post" class="primary">Post to TikTok</button></p>
+      <div id="result"></div>
+    </div>
+  </section>
+</div>
+
+<div id="signedout" class="empty">
+  Connect the TikTok account you want to publish to.<br>
+  Nothing is posted until you choose a video and press <b>Post to TikTok</b>.
+</div>
+
+</div>
+<script>
+const API = "https://www-looked-venture-libs.trycloudflare.com/studio-api";
+const $ = id => document.getElementById(id);
+let session = localStorage.getItem("studio_session") || "";
+let creator = null, selected = null;
+
+async function api(path, opts) {
+  const r = await fetch(API + path, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || j.message || ("HTTP " + r.status));
+  return j;
+}
+
+$("connect").onclick = async () => {
+  $("connect").disabled = true;
+  try {
+    const { url } = await api("/auth/url", { method: "POST" });
+    location.href = url;
+  } catch (e) {
+    $("connect").disabled = false;
+    alert("Could not start TikTok login: " + e.message);
+  }
+};
+
+function showAccount() {
+  $("account").innerHTML =
+    `<div class="who"><img src="${creator.avatar || ""}" alt="">
+       <div><b>${creator.nickname || creator.username || ""}</b>
+       <small>@${creator.username || ""}</small></div></div>`;
+  $("connect").hidden = true;
+  $("signedout").hidden = true;
+  $("app").hidden = false;
+
+  const sel = $("privacy");
+  const LABEL = {
+    PUBLIC_TO_EVERYONE: "Everyone",
+    MUTUAL_FOLLOW_FRIENDS: "Friends (mutual followers)",
+    FOLLOWER_OF_CREATOR: "Followers",
+    SELF_ONLY: "Only me"
+  };
+  sel.innerHTML = (creator.privacy_options || []).map(
+    o => `<option value="${o}">${LABEL[o] || o}</option>`).join("");
+
+  // TikTok requires that interaction settings the creator has switched off at
+  // account level cannot be re-enabled here.
+  [["comment", "comment_disabled"], ["duet", "duet_disabled"], ["stitch", "stitch_disabled"]]
+    .forEach(([k, flag]) => {
+      if (creator[flag]) {
+        $("allow-" + k).checked = false;
+        $("allow-" + k).disabled = true;
+        $("row-" + k).classList.add("off");
+      }
+    });
+}
+
+async function loadVideos() {
+  const { videos } = await api("/videos?session=" + encodeURIComponent(session));
+  $("grid").innerHTML = videos.map(v => `
+    <button class="v" data-file="${v.file}">
+      <img loading="lazy" src="${API}/thumb/${encodeURIComponent(v.file)}" alt="">
+      <div class="m"><b>${v.title}</b>
+        <span><i class="badge">${v.lang}</i>${v.mb} MB${v.posted ? " · posted" : ""}</span>
+      </div>
+    </button>`).join("") || `<p class="empty">No rendered videos yet.</p>`;
+
+  $("grid").querySelectorAll(".v").forEach(el => el.onclick = () => {
+    $("grid").querySelectorAll(".v").forEach(x => x.classList.remove("sel"));
+    el.classList.add("sel");
+    selected = videos.find(v => v.file === el.dataset.file);
+    $("caption").value = selected.caption;
+    $("composer").hidden = false;
+    $("result").className = "";
+    $("composer").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+$("post").onclick = async () => {
+  if (!selected) return;
+  $("post").disabled = true;
+  $("post").textContent = "Posting…";
+  $("result").className = "";
+  try {
+    const r = await api("/publish", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session, file: selected.file, caption: $("caption").value,
+        privacy_level: $("privacy").value,
+        disable_comment: !$("allow-comment").checked,
+        disable_duet: !$("allow-duet").checked,
+        disable_stitch: !$("allow-stitch").checked
+      })
+    });
+    $("result").className = "ok";
+    $("result").textContent = r.direct
+      ? "Posted to your TikTok profile."
+      : "Sent to your TikTok account — open the TikTok app to review and publish it.";
+  } catch (e) {
+    $("result").className = "err";
+    $("result").textContent = "Could not post: " + e.message;
+  }
+  $("post").disabled = false;
+  $("post").textContent = "Post to TikTok";
+};
+
+(async () => {
+  // Coming back from the TikTok consent screen.
+  const code = new URLSearchParams(location.search).get("code");
+  if (code) {
+    history.replaceState({}, "", location.pathname);
+    try {
+      const r = await api("/auth/exchange", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code })
+      });
+      session = r.session;
+      localStorage.setItem("studio_session", session);
+      creator = r;
+      showAccount();
+      return loadVideos();
+    } catch (e) { alert("TikTok login failed: " + e.message); }
+  }
+  if (session) {
+    try {
+      creator = await api("/me?session=" + encodeURIComponent(session));
+      showAccount();
+      await loadVideos();
+    } catch { localStorage.removeItem("studio_session"); }
+  }
+})();
+</script>
+</body>
+</html>
